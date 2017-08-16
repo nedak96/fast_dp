@@ -5,7 +5,7 @@ class _writer:
 
     def __init__(self):
         self._fout = None
-        self._filename = 'fast_dp.log'
+        self._filename = 'fast_dp_pro.log'
         return
 
     def set_filename(self, filename):

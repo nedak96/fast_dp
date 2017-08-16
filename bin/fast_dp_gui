@@ -1,0 +1,510 @@
+#!/usr/bin/env python
+from __future__ import division
+import matplotlib
+matplotlib.use("TkAgg")
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.widgets import RectangleSelector
+from matplotlib.patches import Rectangle
+import matplotlib.pyplot as plt
+import numpy as np
+from Tkinter import *
+import warnings
+
+plt.rcParams.update({'figure.autolayout': True})
+font = {'family' : 'serif',
+        'weight' : 'light',
+        'size'   : 8}
+matplotlib.rc('font', **font)
+
+warnings.filterwarnings("ignore",category =RuntimeWarning)
+
+root = Tk()
+root.title("FastDP Results")
+var=IntVar()
+svar=IntVar()
+anom = IntVar()
+lb = Listbox(root, selectmode=SINGLE)
+scrollbar = Scrollbar(root, orient=VERTICAL)
+lb.config(yscrollcommand=scrollbar.set)
+scrollbar.config(command=lb.yview)
+
+rs = None
+ax1 = None
+
+origResults = np.load('results.npy')
+
+results = np.copy(origResults)
+
+selections = [[],[],[],[],[],[]]
+
+rects = []
+
+Z1=np.full((10,10), np.nan)
+Z2=np.full((10,10), np.nan)
+Z3=np.full((10,10), np.nan)
+Z4=np.full((10,10), np.nan)
+Z5=np.full((10,10), np.nan)
+Z6=np.full((10,10), np.nan)
+Z7=np.full((10,10), np.nan)
+Z8 = np.full((10,10,3), 0)
+
+for i in range(0,55):
+	Z1[results[i]['zy']][results[i]['zx']] = results[i]['rmerge_overall']
+	Z2[results[i]['zy']][results[i]['zx']] = results[i]['completeness_overall']
+	Z3[results[i]['zy']][results[i]['zx']] = results[i]['resol_high_overall']
+	Z4[results[i]['zy']][results[i]['zx']] = results[i]['cchalf_overall']
+	Z5[results[i]['zy']][results[i]['zx']] = results[i]['rpim_overall']
+	Z6[results[i]['zy']][results[i]['zx']] = results[i]['acompleteness_overall']
+	Z7[results[i]['zy']][results[i]['zx']] = results[i]['ccanom_overall']
+	lb.insert(END, " " + str(results[i]['start'])+" -> "+str(results[i]['end']))
+
+l1 = np.nanmin(Z1)
+d1 = np.nanmax(Z1)-l1
+l2 = np.nanmin(Z2)
+d2 = np.nanmax(Z2)-l2
+l3 = np.nanmin(Z3)
+d3 = np.nanmax(Z3)-l3
+l4 = np.nanmin(Z4)
+d4 = np.nanmax(Z4)-l4
+l5 = np.nanmin(Z5)
+d5 = np.nanmax(Z5)-l5
+
+X = np.arange(results[0]['n10'], 11*results[0]['n10'], results[0]['n10'])
+Y = np.arange(results[0]['ops'], results[0]['ope'], results[0]['np10'])
+dims = [results[0]['n10'], 10*results[0]['n10'], results[0]['ops'], results[0]['ope']-results[0]['np10']]
+
+options = ["None", "rMerge", "Comp", "hRes", "rPim", "CC1/2"]
+
+frame = Frame(root)
+hm = Toplevel()
+redl = Label(hm, text="Red:").grid(row=1, column=0)
+greenl = Label(hm, text="Green:").grid(row=2, column=0)
+bluel = Label(hm, text="Blue:").grid(row=3, column=0)
+rv = StringVar()
+rv.set(options[0])
+gv = StringVar()
+gv.set(options[0])
+bv = StringVar()
+bv.set(options[0])
+frame3 = Frame(hm)
+frame3.grid(row=0, column=2, rowspan=5)
+figa = plt.figure(1)
+axa = plt.subplot(111)
+surfa = plt.imshow(Z8,extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]))
+axa.set_xlabel('N-Images')
+axa.set_ylabel('Starting Angle')
+plt.xticks(X)
+plt.yticks(Y)
+canvasa = FigureCanvasTkAgg(figa, master=frame3)
+canvasa.show()
+canvasa.get_tk_widget().pack()
+toolbara = NavigationToolbar2TkAgg(canvasa, frame3)
+canvasa._tkcanvas.pack()
+toolbara.update()
+
+def cred(garb):
+	global Z8
+	plt.figure(1)
+	if rv.get() == options[0]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][0] = 0
+	elif rv.get() == options[1]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][0] = 1-(Z1[i][j]-l1)/d1
+	elif rv.get() == options[2]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][0] = (Z2[i][j]-l2)/d2
+	elif rv.get() == options[3]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][0] = 1-(Z3[i][j]-l3)/d3
+	elif rv.get() == options[4]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][0] = 1-(Z5[i][j]-l5)/d5
+	else:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][0] = (Z4[i][j]-l4)/d4
+	surfa.set_data(Z8)
+	figa.canvas.draw()
+
+def cgreen(garb):
+	global Z8
+	plt.figure(1)
+	if gv.get() == options[0]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][1] = 0
+	elif gv.get() == options[1]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][1] = 1-(Z1[i][j]-l1)/d1
+	elif gv.get() == options[2]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][1] = (Z2[i][j]-l2)/d2
+	elif gv.get() == options[3]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][1] = 1-(Z3[i][j]-l3)/d3
+	elif gv.get() == options[4]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][1] = 1-(Z5[i][j]-l5)/d5
+	else:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][1] = (Z4[i][j]-l4)/d4
+	surfa.set_data(Z8)
+	figa.canvas.draw()
+
+def cblue(garb):
+	global Z8
+	plt.figure(1)
+	if bv.get() == options[0]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][2] = 0
+	elif bv.get() == options[1]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][2] = 1-(Z1[i][j]-l1)/d1
+	elif bv.get() == options[2]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][2] = (Z2[i][j]-l2)/d2
+	elif bv.get() == options[3]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][2] = 1-(Z3[i][j]-l3)/d3
+	elif bv.get() == options[4]:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][2] = 1-(Z5[i][j]-l5)/d5
+	else:
+		for i in range(0,10):
+			for j in range(0,10):
+				Z8[i][j][2] = (Z4[i][j]-l4)/d4
+	surfa.set_data(Z8)
+	figa.canvas.draw()
+
+
+redm = OptionMenu(hm, rv, *options, command=cred)
+redm.config(width=8)
+redm.grid(row=1, column=1)
+greenm = OptionMenu(hm, gv, *options, command=cgreen).grid(row=2, column=1, sticky=E+W)
+bluem = OptionMenu(hm, bv, *options, command=cblue).grid(row=3, column=1, sticky=E+W)
+
+w = 12.5
+h = 5
+fig = plt.figure(0, figsize=(w,h))
+canvas = FigureCanvasTkAgg(fig, master=frame)
+canvas.get_tk_widget().pack()
+toolbar = NavigationToolbar2TkAgg(canvas, frame)
+canvas._tkcanvas.pack()
+
+infobox = Label(root, bg='#fff', height=14, relief="sunken", width=45, justify=LEFT, font="TkFixedFont")
+
+def display():
+	infobox['text'] = "%18s " % "Low resolution" + "%6.2f " % results[lb.curselection()[0]]['resol_low_overall'] + "%6.2f " % results[lb.curselection()[0]]['resol_low_inner']  + "%6.2f" % results[lb.curselection()[0]]['resol_low_outer']+ "\n%18s " % "High resolution" + "%6.2f " % results[lb.curselection()[0]]['resol_high_overall'] + "%6.2f " % results[lb.curselection()[0]]['resol_high_inner']  + "%6.2f" % results[lb.curselection()[0]]['resol_high_outer']+ "\n%18s " % "Rmerge" + "%6.3f " % results[lb.curselection()[0]]['rmerge_overall'] + "%6.3f " % results[lb.curselection()[0]]['rmerge_inner']  + "%6.3f" % results[lb.curselection()[0]]['rmerge_outer']+"\n%18s " % "Rpim" + "%6.3f " % results[lb.curselection()[0]]['rpim_overall'] + "%6.3f " % results[lb.curselection()[0]]['rpim_inner']  + "%6.3f" % results[lb.curselection()[0]]['rpim_outer']+"\n%18s " % "I/sigma" + "%6.2f " % results[lb.curselection()[0]]['isigma_overall'] + "%6.2f " % results[lb.curselection()[0]]['isigma_inner']  + "%6.2f" % results[lb.curselection()[0]]['isigma_outer']+"\n%18s " % "Completeness" + "%6.1f " % results[lb.curselection()[0]]['completeness_overall'] + "%6.1f " % results[lb.curselection()[0]]['completeness_inner']  + "%6.1f" % results[lb.curselection()[0]]['completeness_outer']+"\n%18s " % "Multiplicity" + "%6.1f " % results[lb.curselection()[0]]['multiplicity_overall'] + "%6.1f " % results[lb.curselection()[0]]['multiplicity_inner']  + "%6.1f" % results[lb.curselection()[0]]['multiplicity_outer']+"\n%18s " % "CC 1/2" + "%6.3f " % results[lb.curselection()[0]]['cchalf_overall'] + "%6.3f " % results[lb.curselection()[0]]['cchalf_inner']  + "%6.3f" % results[lb.curselection()[0]]['cchalf_outer']+"\n%18s " % "Anom. Completeness" + "%6.1f " % results[lb.curselection()[0]]['acompleteness_overall'] + "%6.1f " % results[lb.curselection()[0]]['acompleteness_inner'] + "%6.1f" % results[lb.curselection()[0]]['acompleteness_outer']+"\n%18s " % "Anom. Multiplicity" + "%6.1f " % results[lb.curselection()[0]]['amultiplicity_overall'] + "%6.1f " % results[lb.curselection()[0]]['amultiplicity_inner']  + "%6.1f" % results[lb.curselection()[0]]['amultiplicity_outer']+"\n%18s " % "Anom. Correlation"  + "%6.1f " % results[lb.curselection()[0]]['ccanom_overall'] + "%6.1f " % results[lb.curselection()[0]]['ccanom_inner'] + "%6.1f" % results[lb.curselection()[0]]['ccanom_outer']+"\n%18s " % "Nrefl"              + "%6d " % results[lb.curselection()[0]]['nref_overall'] + "%6d " % results[lb.curselection()[0]]['nref_inner']  + "%6d" % results[lb.curselection()[0]]['nref_outer']+"\n%18s " % "Nunique" + "%6d " % results[lb.curselection()[0]]['nunique_overall'] + "%6d " % results[lb.curselection()[0]]['nunique_inner'] + "%6d" % results[lb.curselection()[0]]['nunique_outer']
+
+def down():
+	if lb.curselection()[0] < lb.size()-1:
+		ind = lb.curselection()[0]
+		lb.select_clear(ind)
+		lb.select_set(ind+1)
+		display()
+def up():
+	if lb.curselection()[0] > 0:
+		ind = lb.curselection()[0]
+		lb.select_clear(ind)
+		lb.select_set(ind-1)
+		display()
+
+lb.bind('<Double-1>', lambda x: display())
+lb.bind('<Down>', lambda x: down())
+lb.bind('<Up>', lambda x: up())
+
+def sortLB():
+	global results
+	lb.delete(0, END)
+	if svar.get() == 0:
+		results = sorted(results, key = lambda k : (k['rmerge_overall'], k['start'], k['end']))
+	elif svar.get() == 1:
+		results = sorted(results, key = lambda k : (k['rpim_overall'], k['start'], k['end']))
+	elif svar.get() == 2:
+		if anom.get() == 0:
+			results = sorted(results, key = lambda k : (-k['completeness_overall'], k['start'], k['end']))
+		else:
+			results = sorted(results, key = lambda k : (-k['acompleteness_overall'], k['start'], k['end']))
+	elif svar.get() == 3:
+		results = sorted(results, key = lambda k : (k['resol_high_overall'], k['start'], k['end']))
+	else:
+		if anom.get() == 0:
+			results = sorted(results, key = lambda k : (-k['cchalf_overall'], k['start'], k['end']))
+		else:
+			results = sorted(results, key = lambda k : (-k['ccanom_overall'], k['start'], k['end']))
+	for i in range(0, len(results)):
+		lb.insert(END, " " + str(results[i]['start'])+" -> "+str(results[i]['end']))
+	lb.select_set(0)
+	display()
+
+def reset():
+	global results
+	for i in range(0, 6):
+		del selections[i][:]
+	for i in range(0, len(rects)):
+		rects[i].remove()
+	canvas.show()
+	canvasa.show()
+	del rects[:]
+	results = np.copy(origResults)
+	sortLB()
+
+def dispSelections():
+	fSelections = []
+	fSelTemp = []
+	global results
+	lb.delete(0, END)
+	del results[:]
+	i = 0
+	for i in range(0,6):
+		if len(selections[i]) != 0:
+			fSelections = np.copy(selections[i])
+			break
+	i += 1
+	for i in range(i,6):
+		if len(selections[i]) != 0:
+			for j in range(0,len(selections[i])):
+				for k in range(0,len(fSelections)):
+					x1 = max(fSelections[k][0], selections[i][j][0])
+					y1 = max(fSelections[k][2], selections[i][j][2])
+					x2 = min(fSelections[k][1], selections[i][j][1])
+					y2 = min(fSelections[k][3], selections[i][j][3])
+					if x1 <= x2 and y1 <= y2:
+						fSelTemp.append([x1, x2, y1, y2])
+			fSelections = np.copy(fSelTemp)
+			del fSelTemp[:]
+	for i in range(0,55):
+		for j in range(0, len(fSelections)):
+			ni = origResults[i]['end']-origResults[i]['start']+1
+			if ni >= fSelections[j][0] and ni <= fSelections[j][1] and origResults[i]['phi_start'] >= fSelections[j][2] and origResults[i]['phi_start'] <= fSelections[j][3]:
+				lb.insert(END, " " + str(origResults[i]['start'])+" -> "+str(origResults[i]['end']))
+				results.append(origResults[i])
+				break
+	if lb.size() != 0:
+		sortLB()
+	else:
+		infobox['text'] = ""
+
+def rsCommand(start, end):
+	x1 = x2 = y1 = y2 = 0
+	if start.xdata <= end.xdata:
+		x1 = start.xdata
+		x2 = end.xdata
+	else:
+		x2 = start.xdata
+		x1 = end.xdata
+	if start.ydata <= end.ydata:
+		y1 = start.ydata
+		y2 = end.ydata
+	else:
+		y2 = start.ydata
+		y1 = end.ydata
+	for i in range(1,10):
+		if x1 < X[i]:
+			x1 = X[i-1]
+			for j in range(i,10):
+				if x2 <= X[j]:
+					x2 = X[j]
+					break
+			break
+	for i in range(1,10):
+		if y1 < Y[i]:
+			y1 = Y[i-1]
+			for j in range(i,10):
+				if y2 <= Y[j]:
+					y2 = Y[j]
+					break
+			break
+	selections[var.get()].append([x1, x2, y1, y2])
+	if var.get() == 0:
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#008B00'))
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#008B00'))
+	elif var.get() == 1:
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#28888e'))
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#28888e'))
+	elif var.get() == 2:
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#8e0511'))
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#8e0511'))
+	elif var.get() == 3:
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#8B008B'))
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#8B008B'))
+	else:
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#FF8C00'))
+		rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False, color='#FF8C00'))
+	ax1.add_patch(rects[len(rects)-2])
+	axa.add_patch(rects[len(rects)-1])
+	canvasa.show()
+	canvas.show()
+	dispSelections()
+
+def rsCommand2(start, end):
+	x1 = x2 = y1 = y2 = 0
+	if start.xdata <= end.xdata:
+		x1 = start.xdata
+		x2 = end.xdata
+	else:
+		x2 = start.xdata
+		x1 = end.xdata
+	if start.ydata <= end.ydata:
+		y1 = start.ydata
+		y2 = end.ydata
+	else:
+		y2 = start.ydata
+		y1 = end.ydata
+	for i in range(1,10):
+		if x1 < X[i]:
+			x1 = X[i-1]
+			for j in range(i,10):
+				if x2 <= X[j]:
+					x2 = X[j]
+					break
+			break
+	for i in range(1,10):
+		if y1 < Y[i]:
+			y1 = Y[i-1]
+			for j in range(i,10):
+				if y2 <= Y[j]:
+					y2 = Y[j]
+					break
+			break
+	selections[5].append([x1, x2, y1, y2])
+	rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False))
+	rects.append(Rectangle((x1,y1), (x2-x1), (y2-y1), fill=False))
+	ax1.add_patch(rects[len(rects)-2])
+	axa.add_patch(rects[len(rects)-1])
+	canvasa.show()
+	canvas.show()
+	dispSelections()
+
+def graph():
+	global ax1
+	global rs
+	plt.figure(0)
+	plt.clf()
+	ax = plt.subplot(1,2,1,projection='3d')
+	if var.get() == 0:
+		surf = ax.plot_surface(X, Y, Z1, rstride=1, cstride=1, cmap=cm.coolwarm_r, vmin=np.nanmin(Z1), vmax=np.nanmax(Z1))
+		ax.set_zlabel('rMerge')
+		plt.xticks(X)
+		plt.yticks(Y)
+		ax1 = plt.subplot(1,2,2)
+		surf1 = plt.imshow(Z1, cmap=cm.coolwarm_r, vmin=np.nanmin(Z1), vmax=np.nanmax(Z1), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+	elif var.get() == 1:
+		surf = ax.plot_surface(X, Y, Z5, rstride=1, cstride=1, cmap=cm.coolwarm_r, vmin=np.nanmin(Z5), vmax=np.nanmax(Z5))
+		ax.set_zlabel('rPim')
+		plt.xticks(X)
+		plt.yticks(Y)
+		ax1 = plt.subplot(1,2,2)
+		surf1 = plt.imshow(Z5, cmap=cm.coolwarm_r, vmin=np.nanmin(Z5), vmax=np.nanmax(Z5), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+	elif var.get() == 2:
+		if anom.get() == 0:
+			surf = ax.plot_surface(X, Y, Z2, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=np.nanmin(Z2), vmax=np.nanmax(Z2))
+			ax.set_zlabel('Comp')
+			plt.xticks(X)
+			plt.yticks(Y)
+			ax1 = plt.subplot(1,2,2)
+			surf1 = plt.imshow(Z2, cmap=cm.coolwarm, vmin=np.nanmin(Z2), vmax=np.nanmax(Z2), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+		else:
+			surf = ax.plot_surface(X, Y, Z6, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=np.nanmin(Z6), vmax=np.nanmax(Z6))
+			ax.set_zlabel('Comp')
+			plt.xticks(X)
+			plt.yticks(Y)
+			ax1 = plt.subplot(1,2,2)
+			surf1 = plt.imshow(Z6, cmap=cm.coolwarm, vmin=np.nanmin(Z6), vmax=np.nanmax(Z6), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+	elif var.get() == 3:
+		surf = ax.plot_surface(X, Y, Z3, rstride=1, cstride=1, cmap=cm.coolwarm_r, vmin=np.nanmin(Z3), vmax=np.nanmax(Z3))
+		ax.set_zlabel('hRes')
+		plt.xticks(X)
+		plt.yticks(Y)
+		ax1 = plt.subplot(1,2,2)
+		surf1 = plt.imshow(Z3, cmap=cm.coolwarm_r, vmin=np.nanmin(Z3), vmax=np.nanmax(Z3), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+	else:
+		if anom.get() == 0:
+			surf = ax.plot_surface(X, Y, Z4, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=np.nanmin(Z4), vmax=np.nanmax(Z4))
+			ax.set_zlabel('CC1/2')
+			plt.xticks(X)
+			plt.yticks(Y)
+			ax1 = plt.subplot(1,2,2)
+			surf1 = plt.imshow(Z4, cmap=cm.coolwarm, vmin=np.nanmin(Z4), vmax=np.nanmax(Z4), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+		else:
+			surf = ax.plot_surface(X, Y, Z7, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=np.nanmin(Z7), vmax=np.nanmax(Z7))
+			ax.set_zlabel('CC1/2')
+			plt.xticks(X)
+			plt.yticks(Y)
+			ax1 = plt.subplot(1,2,2)
+			surf1 = plt.imshow(Z7, cmap=cm.coolwarm, vmin=np.nanmin(Z7), vmax=np.nanmax(Z7), extent=dims, aspect=(dims[1]-dims[0])/(dims[3]-dims[2]), interpolation='bilinear')
+	ax.set_xlabel('N-Images')
+	ax.set_ylabel('Starting Angle')
+	ax1.set_xlabel('N-Images')
+	ax1.set_ylabel('Starting Angle')
+	rs = RectangleSelector(ax1, rsCommand, drawtype='box', useblit=True, button=1, spancoords='data')
+	plt.xticks(X)
+	plt.yticks(Y)
+	plt.colorbar(surf1)
+	for i in range(0, len(rects), 2):
+		ax1.add_patch(rects[i])
+	canvas.show()
+	toolbar.update()
+
+def changeAnom():
+	if var.get() == 2 or var.get() == 4:
+		graph()
+	if svar.get() == 2 or svar.get() == 4:
+		sortLB()
+
+rs1 = RectangleSelector(axa, rsCommand2, drawtype='box', useblit=True, button=1, spancoords='data')
+
+frame2 = Frame(root)
+frame2.grid(row=0, column=0, columnspan=3, sticky=W, padx=10, pady=(10,0))
+L2 = Label(frame2, text="Anom.").grid(row=0, column=0)
+R9 = Radiobutton(frame2, text="Off", variable=anom, value=0, command=changeAnom).grid(row=0, column=1)
+R10 = Radiobutton(frame2, text="On", variable=anom, value=1, command=changeAnom).grid(row=0, column=2)
+L1 = Label(frame2, text="Sort By: ").grid(row=0, column=3, padx=(50,0))
+R5 = Radiobutton(frame2, text="rMerge", variable=svar, value=0, command=sortLB).grid(row=0, column=4)
+R12 = Radiobutton(frame2, text="rPim", variable=svar, value=1, command=sortLB).grid(row=0, column=5)
+R6 = Radiobutton(frame2, text="Completeness", variable=svar, value=2, command=sortLB).grid(row=0, column=6)
+R7 = Radiobutton(frame2, text="High Res", variable=svar, value=3, command=sortLB).grid(row=0, column=7)
+R8 = Radiobutton(frame2, text="CC1/2", variable=svar, value=4, command=sortLB).grid(row=0, column=8)
+rBut = Button(frame2, text="Reset Selection", command=reset).grid(row=0, column=9, padx=(50,0))
+scrollbar.grid(row=1, column=0, pady=11, sticky=N+S+E)
+lb.grid(row=1, column=0, padx=10, pady=10, sticky=N+E+S+W)
+frame.grid(row=2, column=1, rowspan=7, columnspan=2, sticky=W+E+N+S)
+infobox.grid(row=1, column=1, sticky=W, padx=10, pady=10)
+
+sortLB()
+graph()
+
+R1 = Radiobutton(root, text="rMerge", variable=var, value=0, indicatoron=0, command=graph, fg='#008B00', activeforeground='#008B00').grid(row=3, column=0, sticky=W+E+N+S, padx=10)
+R11 = Radiobutton(root, text="rPim", variable=var, value=1, indicatoron=0,command=graph, fg='#28888e', activeforeground='#28888e').grid(row=4, column=0, sticky=W+E+N+S, padx=10)
+R2 = Radiobutton(root, text="Completeness", variable=var, value=2, indicatoron=0, command=graph, fg='#8e0511', activeforeground='#8e0511').grid(row=5, column=0, sticky=W+E+N+S, padx=10)
+R3 = Radiobutton(root, text="High Res", variable=var, value=3, indicatoron=0,command=graph, fg='#8B008B', activeforeground='#8B008B').grid(row=6, column=0, sticky=W+E+N+S, padx=10)
+R4 = Radiobutton(root, text="CC1/2", variable=var, value=4, indicatoron=0,command=graph, fg='#FF8C00', activeforeground='#FF8C00').grid(row=7, column=0, sticky=W+E+N+S, padx=10)
+
+def quit():
+	plt.close('all')
+	root.destroy()
+
+root.protocol('WM_DELETE_WINDOW', quit)
+
+hm.lift()
+
+mainloop()

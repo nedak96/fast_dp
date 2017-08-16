@@ -31,7 +31,7 @@ def anomalous_signals(hklin):
 
     return df_f, di_sigdi
 
-def merge(hklout='fast_dp.mtz', aimless_log='aimless.log'):
+def merge(hklout='fast_dp_pro.mtz', aimless_log='aimless.log'):
     '''Merge the reflections from XDS_ASCII.HKL with Aimless to get
     statistics - this will use pointless for the reflection file format
     mashing.'''
@@ -73,6 +73,8 @@ def parse_aimless_log(log):
             rmerge = tuple(map(float, record.split()[-3:]))
         elif 'Rmeas (within I+/I-) ' in record:
             rmeas = tuple(map(float, record.split()[-3:]))
+	elif 'Rpim (within I+/I-)  ' in record:
+            rpim = tuple(map(float, record.split()[-3:]))
         elif 'Mean((I)/sd(I))  ' in record:
             isigma = tuple(map(float, record.split()[-3:]))
         elif 'Completeness  ' in record:
@@ -98,6 +100,7 @@ def parse_aimless_log(log):
     xml_results = {}
     xml_results['rmerge_overall'] = rmerge[0]
     xml_results['rmeas_overall'] = rmeas[0]
+    xml_results['rpim_overall'] = rpim[0]
     xml_results['resol_high_overall'] = hres[0]
     xml_results['resol_low_overall'] = lres[0]
     xml_results['isigma_overall'] = isigma[0]
@@ -112,6 +115,7 @@ def parse_aimless_log(log):
 
     xml_results['rmerge_inner'] = rmerge[1]
     xml_results['rmeas_inner'] = rmeas[1]
+    xml_results['rpim_inner'] = rpim[1]
     xml_results['resol_high_inner'] = hres[1]
     xml_results['resol_low_inner'] = lres[1]
     xml_results['isigma_inner'] = isigma[1]
@@ -126,6 +130,7 @@ def parse_aimless_log(log):
 
     xml_results['rmerge_outer'] = rmerge[2]
     xml_results['rmeas_outer'] = rmeas[2]
+    xml_results['rpim_outer'] = rpim[2]
     xml_results['resol_high_outer'] = hres[2]
     xml_results['resol_low_outer'] = lres[2]
     xml_results['isigma_outer'] = isigma[2]
@@ -140,28 +145,7 @@ def parse_aimless_log(log):
 
     # compute some additional results
 
-    df_f, di_sigdi = anomalous_signals('fast_dp.mtz')
-    # print out the results...
-
-    write(80 * '-')
-
-    write('%20s ' % 'Low resolution'     + '%6.2f %6.2f %6.2f' % lres)
-    write('%20s ' % 'High resolution'    + '%6.2f %6.2f %6.2f' % hres)
-    write('%20s ' % 'Rmerge'             + '%6.3f %6.3f %6.3f' % rmerge)
-    write('%20s ' % 'I/sigma'            + '%6.2f %6.2f %6.2f' % isigma)
-    write('%20s ' % 'Completeness'       + '%6.1f %6.1f %6.1f' % comp)
-    write('%20s ' % 'Multiplicity'       + '%6.1f %6.1f %6.1f' % mult)
-    write('%20s ' % 'CC 1/2'             + '%6.3f %6.3f %6.3f' % cchalf)
-    write('%20s ' % 'Anom. Completeness' + '%6.1f %6.1f %6.1f' % acomp)
-    write('%20s ' % 'Anom. Multiplicity' + '%6.1f %6.1f %6.1f' % amult)
-    write('%20s ' % 'Anom. Correlation'  + '%6.3f %6.3f %6.3f' % ccanom)
-    write('%20s ' % 'Nrefl'              + '%6d %6d %6d' % nref)
-    write('%20s ' % 'Nunique'            + '%6d %6d %6d' % nuniq)
-    write('%20s ' % 'Mid-slope'          + '%6.3f' % slope)
-    write('%20s ' % 'dF/F'               + '%6.3f' % df_f)
-    write('%20s ' % 'dI/sig(dI)'         + '%6.3f' % di_sigdi)
-
-    write(80 * '-')
+    df_f, di_sigdi = anomalous_signals('fast_dp_pro.mtz')
 
     return xml_results
 

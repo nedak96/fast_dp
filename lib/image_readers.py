@@ -33,7 +33,7 @@ def find_hdf5_lib():
   import os
   for d in os.environ['PATH'].split(os.pathsep):
     if os.path.exists(os.path.join(d, 'xds_par')):
-      __hdf5_lib = 'LIB=%s\n' % os.path.join(d,'dectris-neggia.so')
+      __hdf5_lib = 'LIB=%s\n' % '/usr/local/crys-prod/lib/dectris-neggia.so'
       return __hdf5_lib
   return ''
 

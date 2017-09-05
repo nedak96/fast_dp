@@ -2,7 +2,7 @@ import os
 
 def write_ispyb_xml(commandline, spacegroup, unit_cell,
                     xml_results, start_image, refined_beam,
-                    filename='fast_dp_pro.xml'):
+                    filename='fast_dp.xml'):
     '''Write out big lump of XML for ISPyB import.'''
 
     xml_template = os.path.join(os.environ['FAST_DP_ROOT'],

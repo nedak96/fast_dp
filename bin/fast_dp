@@ -12,4 +12,20 @@ export PHENIX_TRUST_OTHER_ENV=1
 # extend to (hopefully) 4096 file handles... for big Eiger sets
 ulimit -n `ulimit -Hn 2>&1 |sed 's/unlimited/4096/'`
 
-cctbx.python ${FAST_DP_ROOT}/src/fast_dp.py $@
+pro=false
+
+for (( i=1; i<=$#; i++ ))
+do
+    	if [[ ${!i} = "-p" ]] ; then
+        	pro=true
+		set -- "${@:1:$i-1}" "${@:$i+1}"
+        	break
+    	fi
+done
+
+if $pro
+then
+	cctbx.python ${FAST_DP_ROOT}/src/fast_dp_p.py $@
+else
+	cctbx.python ${FAST_DP_ROOT}/src/fast_dp.py $@
+fi

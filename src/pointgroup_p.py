@@ -9,7 +9,7 @@ from run_job import run_job
 from cell_spacegroup import lattice_to_spacegroup, ersatz_pointgroup, \
     spacegroup_to_lattice, check_spacegroup_name
 
-from logger import write
+from logger_p import write
 
 def decide_pointgroup(p1_unit_cell, metadata,
                       input_spacegroup = None):
@@ -114,3 +114,12 @@ def decide_pointgroup(p1_unit_cell, metadata,
     shutil.copyfile('XDS_ASCII.HKL', 'XDS_P1.HKL')
 
     return unit_cell, space_group_number, resolution_high
+
+def getRes(p1_unit_cell, metadata):
+    xds_inp = 'P1.INP'
+    write_xds_inp_correct(metadata, p1_unit_cell, 1, xds_inp)
+    shutil.copyfile(xds_inp, 'XDS.INP')
+    run_job('xds_par')
+    shutil.copyfile('CORRECT.LP', 'P1.LP')
+    resolution_high = read_correct_lp_get_resolution('CORRECT.LP')
+    return resolution_high

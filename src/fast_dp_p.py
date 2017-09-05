@@ -28,12 +28,14 @@ from xml_output import write_ispyb_xml
 
 from image_readers import read_image_metadata, check_file_readable
 
-from autoindex import autoindex
+from autoindex_p import autoindex
 from integrate import integrate
 from scale import scale
-from merge import merge
-from pointgroup import decide_pointgroup
-from logger import write
+from merge_p import merge
+from pointgroup_p import decide_pointgroup, getRes
+from logger_p import write
+from shutil import copyfile, rmtree
+import numpy as np
 
 class FastDP:
     '''A class to implement fast data processing for MX beamlines (at Diamond)
@@ -262,7 +264,7 @@ class FastDP:
             self._p1_unit_cell = autoindex(self._metadata,
                                            input_cell = self._input_cell_p1)
         except exceptions.Exception, e:
-            traceback.print_exc(file = open('fast_dp.error', 'w'))
+            traceback.print_exc(file = open('fast_dp_pro.error', 'w'))
             write('Autoindexing error: %s' % e)
             return
 
@@ -272,7 +274,7 @@ class FastDP:
                                 self._n_cores)
             write('Mosaic spread: %.2f < %.2f < %.2f' % tuple(mosaics))
         except RuntimeError, e:
-            traceback.print_exc(file = open('fast_dp.error', 'w'))
+            traceback.print_exc(file = open('fast_dp_pro.error', 'w'))
             write('Integration error: %s' % e)
             return
 
@@ -298,41 +300,130 @@ class FastDP:
             write('Pointgroup error: %s' % e)
             return
 
-        try:
-            self._unit_cell, self._space_group, self._nref, beam_pixels = \
-            scale(self._unit_cell, self._metadata, self._space_group_number, \
-                   self._resolution_high)
-            self._refined_beam = (self._metadata['pixel'][1] * beam_pixels[1],
-                                  self._metadata['pixel'][0] * beam_pixels[0])
+	nq = len(self._metadata['template'].split(".")[0])-len(self._metadata['template'].split("?")[0])
+	n10 = int((self._metadata['end']-self._metadata['start']+1)/10)
+	np10 = n10*self._metadata['phi_width']
+	origPhiEnd = phi_end
+	origPhiStart = self._metadata['phi_start']
+	origEnd = self._metadata['end']
+	origStart = self._metadata['start']
+	cPath = os.getcwd()
+	results = [None for y in range(0,55)]
+	uc = sg = nref = rb = None
+	i = 0
+	for x in range(0, 10):
+		phi_end = origPhiEnd
+		self._metadata['end'] = origEnd
+		for y in range(0, 10-x):
+			tPath = cPath+"/"+str(self._metadata['start'])+"-"+str(self._metadata['end'])
+			if not os.path.exists(tPath):
+				os.makedirs(tPath)
+			copyfile("INTEGRATE.HKL", tPath+"/INTEGRATE.HKL")
+			copyfile("X-CORRECTIONS.cbf", tPath+"/X-CORRECTIONS.cbf")
+			copyfile("Y-CORRECTIONS.cbf", tPath+"/Y-CORRECTIONS.cbf")
+			os.chdir(tPath)
+			tfile = open(self._metadata['template'].split("?")[0]+str(self._metadata['start'])+"-"+str(self._metadata['end'])+"_fast_dp_pro.log", "w")
+			self._resolution_high = getRes(self._p1_unit_cell, self._metadata)
+			try:
+				uc, sg, nref, beam_pixels = \
+				scale(self._unit_cell, self._metadata, self._space_group_number, \
+				   self._resolution_high)
+				rb = (self._metadata['pixel'][1] * beam_pixels[1],
+					              self._metadata['pixel'][0] * beam_pixels[0])
+				self._nref += nref
 
-        except RuntimeError, e:
-            write('Scaling error: %s' % e)
-            return
+			except RuntimeError, e:
+				write('Scaling error: %s' % e)
+				return
 
-        try:
-            n_images = self._metadata['end'] - self._metadata['start'] + 1
-            self._xml_results = merge()
-        except RuntimeError, e:
-            write('Merging error: %s' % e)
-            return
+			try:
+				n_images = self._metadata['end'] - self._metadata['start'] + 1
+				results[i] = merge()
+			except RuntimeError, e:
+				write('Merging error: %s' % e)
+				return
+			results[i]['sg'] = sg
+			results[i]['uc'] = uc
+			results[i]['start'] = self._metadata['start']
+			results[i]['end'] = self._metadata['end']
+			results[i]['phi_start'] = self._metadata['phi_start']
+			results[i]['zx'] = 9-x-y
+			results[i]['zy'] = 9-x
+			results[i]['n10'] = n10
+			results[i]['np10'] = np10
+			results[i]['ops'] = origPhiStart
+			results[i]['ope'] = origPhiEnd
 
-        write('Merging point group: %s' % self._space_group)
+			write_ispyb_xml(self._commandline, sg, uc, results[i], self._metadata['template'].replace('?'*nq, str(results[i]['start']+origStart-1).zfill(nq)), rb)
+
+			tfile.write('Range: ' + str(results[i]['start']) + ' -> ' + str(results[i]['end']))
+			tfile.write('\n%20s ' % 'Low resolution'     + '%6.2f ' % results[i]['resol_low_overall'] + '%6.2f ' % results[i]['resol_low_inner']  + '%6.2f\n' % results[i]['resol_low_outer'])
+			tfile.write('%20s ' % 'High resolution'    + '%6.2f ' % results[i]['resol_high_overall'] + '%6.2f ' % results[i]['resol_high_inner']  + '%6.2f\n' % results[i]['resol_high_outer'])
+			tfile.write('%20s ' % 'Rmerge'             + '%6.3f ' % results[i]['rmerge_overall'] + '%6.3f ' % results[i]['rmerge_inner']  + '%6.3f\n' % results[i]['rmerge_outer'])
+			tfile.write('%20s ' % 'Rpim'             + '%6.3f ' % results[i]['rpim_overall'] + '%6.3f ' % results[i]['rpim_inner']  + '%6.3f\n' % results[i]['rpim_outer'])
+			tfile.write('%20s ' % 'I/sigma'            + '%6.2f ' % results[i]['isigma_overall'] + '%6.2f ' % results[i]['isigma_inner']  + '%6.2f\n' % results[i]['isigma_outer'])
+			tfile.write('%20s ' % 'Completeness'       + '%6.1f ' % results[i]['completeness_overall'] + '%6.1f ' % results[i]['completeness_inner']  + '%6.1f\n' % results[i]['completeness_outer'])
+			tfile.write('%20s ' % 'Multiplicity'       + '%6.1f ' % results[i]['multiplicity_overall'] + '%6.1f ' % results[i]['multiplicity_inner']  + '%6.1f\n' % results[i]['multiplicity_outer'])
+			tfile.write('%20s ' % 'CC 1/2'             + '%6.1f ' % results[i]['cchalf_overall'] + '%6.1f ' % results[i]['cchalf_inner']  + '%6.1f\n' % results[i]['cchalf_outer'])
+			tfile.write('%20s ' % 'Anom. Completeness' + '%6.1f ' % results[i]['acompleteness_overall'] + '%6.1f ' % results[i]['acompleteness_inner']  + '%6.1f\n' % results[i]['acompleteness_outer'])
+			tfile.write('%20s ' % 'Anom. Multiplicity' + '%6.1f ' % results[i]['amultiplicity_overall'] + '%6.1f ' % results[i]['amultiplicity_inner']  + '%6.1f\n' % results[i]['amultiplicity_outer'])
+			tfile.write('%20s ' % 'Anom. Correlation'  + '%6.1f ' % results[i]['ccanom_overall'] + '%6.1f ' % results[i]['ccanom_inner']  + '%6.1f\n' % results[i]['ccanom_outer'])
+			tfile.write('%20s ' % 'Nrefl'              + '%6d ' % results[i]['nref_overall'] + '%6d ' % results[i]['nref_inner']  + '%6d\n' % results[i]['nref_outer'])
+			tfile.write('%20s ' % 'Nunique'            + '%6d ' % results[i]['nunique_overall'] + '%6d ' % results[i]['nunique_inner']  + '%6d\n' % results[i]['nunique_outer'])
+			i += 1
+			copyfile("fast_dp_pro.mtz", self._metadata['template'].split("?")[0]+str(self._metadata['start'])+"-"+str(self._metadata['end'])+"_fast_dp_pro.mtz")
+			tfile.close()
+			self._metadata['end'] -= n10
+			phi_end -= np10
+			os.chdir(cPath)
+			print ' [' + ('-'*i) + (' '*(55-i)) + ']\r',
+		self._metadata['start'] += n10
+		self._metadata['phi_start'] += np10
+	np.save('results.npy', results)
+	results = sorted(results, key=lambda k : (k['rmerge_overall'], -k['completeness_overall']))
+	c = 0
+	i = 0
+	write(80 * '-')
+	while i<55 and c<20:
+		if results[i]['completeness_overall'] > 97:
+			if c == 0:
+				bestPath = str(results[i]['start']) + '-' + str(results[i]['end']) + "(BestRange)"
+				if os.path.exists(bestPath):
+					rmtree(bestPath, ignore_errors=False, onerror=None)
+				os.rename(str(results[i]['start']) + '-' + str(results[i]['end']), bestPath)
+				write('Best range: ' + str(results[i]['start']) + ' -> ' + str(results[i]['end']))
+				self._xml_results = results[i]
+			else:
+				write(str(c+1) + ' range: ' + str(results[i]['start']) + ' -> ' + str(results[i]['end']))
+			write('%20s ' % 'Low resolution'     + '%6.2f ' % results[i]['resol_low_overall'] + '%6.2f ' % results[i]['resol_low_inner']  + '%6.2f' % results[i]['resol_low_outer'])
+			write('%20s ' % 'High resolution'    + '%6.2f ' % results[i]['resol_high_overall'] + '%6.2f ' % results[i]['resol_high_inner']  + '%6.2f' % results[i]['resol_high_outer'])
+			write('%20s ' % 'Rmerge'             + '%6.3f ' % results[i]['rmerge_overall'] + '%6.3f ' % results[i]['rmerge_inner']  + '%6.3f' % results[i]['rmerge_outer'])
+			write('%20s ' % 'Rpim'             + '%6.3f ' % results[i]['rpim_overall'] + '%6.3f ' % results[i]['rpim_inner']  + '%6.3f' % results[i]['rpim_outer'])
+			write('%20s ' % 'I/sigma'            + '%6.2f ' % results[i]['isigma_overall'] + '%6.2f ' % results[i]['isigma_inner']  + '%6.2f' % results[i]['isigma_outer'])
+			write('%20s ' % 'Completeness'       + '%6.1f ' % results[i]['completeness_overall'] + '%6.1f ' % results[i]['completeness_inner']  + '%6.1f' % results[i]['completeness_outer'])
+			write('%20s ' % 'Multiplicity'       + '%6.1f ' % results[i]['multiplicity_overall'] + '%6.1f ' % results[i]['multiplicity_inner']  + '%6.1f' % results[i]['multiplicity_outer'])
+			write('%20s ' % 'CC 1/2'             + '%6.1f ' % results[i]['cchalf_overall'] + '%6.1f ' % results[i]['cchalf_inner']  + '%6.1f' % results[i]['cchalf_outer'])
+			write('%20s ' % 'Anom. Completeness' + '%6.1f ' % results[i]['acompleteness_overall'] + '%6.1f ' % results[i]['acompleteness_inner']  + '%6.1f' % results[i]['acompleteness_outer'])
+			write('%20s ' % 'Anom. Multiplicity' + '%6.1f ' % results[i]['amultiplicity_overall'] + '%6.1f ' % results[i]['amultiplicity_inner']  + '%6.1f' % results[i]['amultiplicity_outer'])
+			write('%20s ' % 'Anom. Correlation'  + '%6.1f ' % results[i]['ccanom_overall'] + '%6.1f ' % results[i]['ccanom_inner']  + '%6.1f' % results[i]['ccanom_outer'])
+			write('%20s ' % 'Nrefl'              + '%6d ' % results[i]['nref_overall'] + '%6d ' % results[i]['nref_inner']  + '%6d' % results[i]['nref_outer'])
+			write('%20s ' % 'Nunique'            + '%6d ' % results[i]['nunique_overall'] + '%6d ' % results[i]['nunique_inner']  + '%6d' % results[i]['nunique_outer'])
+			write(80 * '-')
+			c += 1
+		i += 1
+
+	if c == 0:
+		write('No data meets the requirements')
+		write(80 * '-')
+
+        write('Merging point group: %s' % self._xml_results['sg'])
         write('Unit cell: %6.2f %6.2f %6.2f %6.2f %6.2f %6.2f' % \
-              self._unit_cell)
+              self._xml_results['uc'])
 
         duration = time.time() - step_time
-        write('Processing took %s (%d s) [%d reflections]' %
-              (time.strftime('%Hh %Mm %Ss',
-                             time.gmtime(duration)), duration,
-               self._nref))
-        write('RPS: %.1f' % (float(self._nref) / duration))
-
-        # write out the xml
-
-        write_ispyb_xml(self._commandline, self._space_group,
-                        self._unit_cell, self._xml_results,
-                        self._start_image, self._refined_beam)
-
+        write('Processing took %s (%d s)' %
+              (time.strftime('%Hh %Mm %Ss', time.gmtime(duration)), duration))
+	copyfile("fast_dp_pro.log", self._metadata['template'].split("?")[0]+"fast_dp_pro.log")
         return
 
 def main():
@@ -451,7 +542,7 @@ def main():
         fast_dp.process()
 
     except exceptions.Exception, e:
-        traceback.print_exc(file = open('fast_dp.error', 'w'))
+        traceback.print_exc(file = open('fast_dp_pro.error', 'w'))
         write('Fast DP error: %s' % str(e))
 
     json_stuff = { }
@@ -463,7 +554,7 @@ def main():
             continue
         json_stuff[prop] = getattr(fast_dp, prop)
     import json
-    json.dump(json_stuff, open('fast_dp.json', 'wb'))
+    json.dump(json_stuff, open('fast_dp_pro.json', 'wb'))
 
     return
 
